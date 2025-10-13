@@ -1,10 +1,11 @@
 {
   "compilerOptions": {
-    "target": "ES2022", // or another valid target
+    "target": "ESNext", // or another valid target
     "module": "commonjs",
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "types": ["vite/client"]
   },
   "files": [],
   "references": [
