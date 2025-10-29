@@ -11,6 +11,7 @@ def hello():
     return {"message": "Hello from FastAPI"}
 
 # Configuration
+#REMEMBER TO REPLACE THE NAME WITH THE ACTUAL BUCKET NAME IN PRODUCTION
 GCS_BUCKET_NAME = os.environ.get('GCS_BUCKET_NAME', 'your-gcs-bucket-name')
 storage_client = storage.Client()
 
