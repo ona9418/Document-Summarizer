@@ -1,79 +1,159 @@
-import { useState, type ChangeEvent } from 'react'
-import './App.css'
+import { useState } from 'react'
+import './App.css'; // Import the external CSS file
 
+// --- Global variables provided by the environment ---
+// Set to your expected backend API endpoint (e.g., Cloud Run URL).
+const BACKEND_URL = "http://localhost:8000"; 
+// ---
 
-const DocumentUploader = () => {
-  // Best Practice: Explicitly type the state for selectedFile as File or null
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadStatus, setUploadStatus] = useState('');
+const App = () => {
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [uploadStatus, setUploadStatus] = useState('1. Select a document (PDF, DOCX, JPG, PNG, TXT).');
+    const [summarizeStatus, setSummarizeStatus] = useState('');
+    const [finalSummary, setFinalSummary] = useState('');
+    const [uploadedDocumentPath, setUploadedDocumentPath] = useState<string | null>(null);
+    
+    const supportedFileTypes = "application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, text/plain";
 
-  // Supported file formats: PNG, JPEG, PDF, DOCX, etc.
-  const supportedFileTypes = "application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, text/plain";
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            setSelectedFile(files[0]);
+            setFinalSummary('');
+            setUploadStatus(`File selected: ${files[0].name}. Click 'Upload File'.`);
+            setSummarizeStatus('');
+            setUploadedDocumentPath(null); 
+        }
+    };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    // FIX: Assign event.target.files to a variable for safe access
-    const files = event.target.files;
+    // 1. Handles uploading to GCS
+    const handleUpload = async () => {
+        if (!selectedFile) return;
 
-    // Now TypeScript is happy: check if files is not null AND has items
-    if (files && files.length > 0) {
-      setSelectedFile(files[0]);
-    }
-  };
+        setUploadStatus('Uploading...');
+        setSummarizeStatus('');
+        setUploadedDocumentPath(null);
 
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      setUploadStatus('Please select a file first.');
-      return;
-    }
+        const formData = new FormData();
+        formData.append('document', selectedFile);
+        
+        try {
+            const response = await fetch(`${BACKEND_URL}/upload-document`, {
+                method: 'POST',
+                body: formData,
+            });
 
-    setUploadStatus('Uploading...');
-    const formData = new FormData();
-    formData.append('document', selectedFile);
+            if (response.ok) {
+                const data = await response.json();
+                setUploadedDocumentPath(data.documentId); 
+                setUploadStatus(`Upload complete. Document ID: ${data.documentId}. Click 'Summarize'.`);
+            } else {
+                const errorData = await response.json();
+                setUploadStatus(`Upload FAILED: ${errorData.detail || errorData.message}`);
+            }
+        } catch (error) {
+            let errorMessage = "Unknown network error.";
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            } 
+            setUploadStatus(`Network FAILED: ${errorMessage}. Check backend connection at ${BACKEND_URL}`);
+        }
+    };
 
-// The React UI sends the request to the Python backend
-    try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/upload-document`, {
-        method: 'POST',
-        // The browser automatically sets the 'Content-Type' header for FormData
-        body: formData,
-      });
+    // 2. Handles summarization
+    const handleSummarize = async () => {
+        if (!uploadedDocumentPath) {
+             setSummarizeStatus('Error: Please upload a file first.');
+             return; 
+        }
 
-      if (response.ok) {
-        const data = await response.json();
-        setUploadStatus(`Upload successful! Document ID: ${data.documentId}`);
-        // Optionally, clear the file input after success
-        setSelectedFile(null);
-      } else {
-        const errorData = await response.json();
-        setUploadStatus(`Upload failed: ${errorData.message}`);
-      }
-    } catch (error: unknown) {
-      let errorMessage = "Unknown error";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      else if (typeof error === 'object' && error !== null && 'message' in error) {
-        errorMessage = `Network error during upload: ${(error as {message: string }).message}`;
-      }
-      setUploadStatus(errorMessage);
-    }
-  };
+        setSummarizeStatus('Running OCR and generating summary...');
+        setFinalSummary('');
+        
+        const formData = new FormData();
+        formData.append('document_id', uploadedDocumentPath); 
 
-  return (
-    <div className="uploader-container">
-      <label htmlFor = "document-upload">Select a document to upload:</label>
-      <input
-        type="file"
-        id = "document-upload"
-        accept={supportedFileTypes}
-        onChange={handleFileChange}
-      />
-      <button onClick={handleUpload} disabled={!selectedFile || uploadStatus === 'Uploading...'}>
-        {uploadStatus === 'Uploading...' ? 'Uploading...' : 'Upload Document'}
-      </button>
-      <p>{uploadStatus}</p>
-    </div>
-  );
+        try {
+            const response = await fetch(`${BACKEND_URL}/summarize`, {
+                method: 'POST',
+                body: formData, 
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setFinalSummary(data.summary);
+                setSummarizeStatus(`Summarization successful for "${data.documentName}".`);
+                setUploadedDocumentPath(null); 
+                setSelectedFile(null); 
+            } else {
+                const errorData = await response.json();
+                setSummarizeStatus(`Summarization FAILED: ${errorData.detail || errorData.message}`);
+            }
+        } catch (error) {
+            let errorMessage = "Network error or internal process failed.";
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            setSummarizeStatus(`Error: ${errorMessage}.`);
+        }
+    };
+    
+    // Determine if an error class should be applied to the status text
+    const statusClass = (uploadStatus.includes('FAILED') || summarizeStatus.includes('FAILED')) 
+        ? "status-text status-error" 
+        : "status-text";
+
+    return (
+        <div className="prototype-container">
+            <h2>GCP OCR Summarization Prototype</h2>
+            <hr />
+
+            {/* 1. File Selection */}
+            <div className="step-group">
+                <label htmlFor="document-file">Document Input</label>
+                <input
+                    type="file"
+                    id="document-file"
+                    accept={supportedFileTypes}
+                    onChange={handleFileChange}
+                />
+            </div>
+
+            {/* 2. Upload Button */}
+            <div className="step-group">
+                <button 
+                    onClick={handleUpload} 
+                    disabled={!selectedFile || uploadedDocumentPath !== null || uploadStatus.includes('Uploading') || uploadStatus.includes('FAILED')}
+                    id="upload-button"
+                >
+                    {uploadStatus.includes('Uploading') ? 'Uploading...' : 'Upload File to GCS'}
+                </button>
+            </div>
+
+            {/* 3. Summarize Button */}
+            <div className="step-group">
+                <button 
+                    onClick={handleSummarize} 
+                    disabled={!uploadedDocumentPath || summarizeStatus.includes('Running OCR') || summarizeStatus.includes('FAILED')}
+                    id="summarize-button"
+                >
+                    {summarizeStatus.includes('Running OCR') ? 'Generating Summary...' : 'Summarize Document (OCR + AI)'}
+                </button>
+            </div>
+            
+            <p className={statusClass}>
+                **Status:** {uploadStatus || summarizeStatus || 'Awaiting action...'}
+            </p>
+
+            {/* Summary Output */}
+            {finalSummary && (
+                <div className="summary-output">
+                    <h3>Generated Summary</h3>
+                    <pre className="summary-text-area">{finalSummary}</pre>
+                </div>
+            )}
+        </div>
+    );
 };
 
-export default DocumentUploader ;
+export default App;
