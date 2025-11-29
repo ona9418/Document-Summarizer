@@ -39,23 +39,28 @@ const DocumentUploader = () => {
         body: formData,
       });
 
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (e){
+        console.warn("Non-JSON response:", text);
+        data = { message: text || 'No response from server' };
+      }
+
       if (response.ok) {
-        const data = await response.json();
         setUploadStatus(`Upload successful! Document ID: ${data.documentId}`);
         // Optionally, clear the file input after success
         setSelectedFile(null);
       } else {
-        const errorData = await response.json();
-        setUploadStatus(`Upload failed: ${errorData.message}`);
+        setUploadStatus(`Upload failed: ${data.message}`);
       }
-    } catch (error: unknown) {
+    } catch (error) {
       let errorMessage = "Unknown error";
       if (error instanceof Error) {
-        errorMessage = error.message;
+        errorMessage = "Problem is here: "+error.message;
       }
-      else if (typeof error === 'object' && error !== null && 'message' in error) {
-        errorMessage = `Network error during upload: ${(error as {message: string }).message}`;
-      }
+      
       setUploadStatus(errorMessage);
     }
   };

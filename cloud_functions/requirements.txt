@@ -1,0 +1,7 @@
+google-cloud-storage
+google-cloud-vision
+google-cloud-firestore
+functions-framework
+firebase-admin
+python-dotenv
+google-genai
