@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import './App.css'; // Import the external CSS file
+import { useState, type ChangeEvent } from 'react'
+import './App.css'
 
 // --- Global variables provided by the environment ---
 // Set to your expected backend API endpoint (e.g., Cloud Run URL).
