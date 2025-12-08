@@ -30,6 +30,8 @@ origins = [
     "http://localhost:5173", 
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
+    "https://document-summarizer-476701.web.app",
+    "https://document-summarizer-476701.firebaseapp.com"
 ]
 
 app.add_middleware(
