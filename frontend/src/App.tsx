@@ -52,6 +52,17 @@ const App = () => {
         setUploadStatus('1. Select a document.');
     };
 
+    const handleDownloadSummary = () => {
+        if (!finalSummary) return;
+        const element = document.createElement("a");
+        const file = new Blob([finalSummary], {type: 'text/plain'});
+        element.href = URL.createObjectURL(file);
+        element.download = "summary.txt";
+        document.body.appendChild(element); // Required for this to work in FireFox
+        element.click();
+        document.body.removeChild(element);
+    };
+
     if (!userId) {
         return <Login onLogin={(id) => setUserId(id)} />;
     }
@@ -213,7 +224,16 @@ const App = () => {
 
                     {finalSummary && (
                         <div className="summary-output">
-                            <h3>Generated Summary</h3>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '5px'}}>
+                                <h3 style={{margin: 0, border: 'none'}}>Generated Summary</h3>
+                                <button 
+                                    onClick={handleDownloadSummary} 
+                                    style={{width: 'auto', padding: '5px 10px', fontSize: '0.8rem', backgroundColor: '#28a745'}}
+                                    title="Download summary as a text file"
+                                >
+                                    ⬇ Save .txt
+                                </button>
+                            </div>
                             <pre className="summary-text-area">{finalSummary}</pre>
                         </div>
                     )}
