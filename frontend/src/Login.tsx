@@ -57,7 +57,7 @@ const Login = ({ onLogin }: LoginProps) => {
             }
         } catch (err) {
             console.error("Auth error:", err);
-            setError("Connection failed. Is the backend running?");
+            setError("Login failed. Have you registered your account?");
         } finally {
             // 2. Ensure this ALWAYS runs to stop the spinner
             setLoading(false);

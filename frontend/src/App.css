@@ -9,9 +9,10 @@
 h2 {
   text-align: center;
   margin-bottom: 20px;
-  color: #333;
+  color: #007BFF;
   border-bottom: 2px solid #eee;
   padding-bottom: 10px;
+  font-weight: 700;
 }
 
 .prototype-container {
