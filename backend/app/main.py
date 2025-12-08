@@ -13,6 +13,7 @@ import io
 import time 
 import uuid
 from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 
 from app.Summarizer import abstractive_summary 
 from app.auth import router as auth_router
@@ -337,6 +338,8 @@ async def get_user_history(user_id: str):
             .stream()
         
         history = []
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
+        
         bucket = storage_client.bucket(GCS_BUCKET_NAME)
         
         for doc in docs:
