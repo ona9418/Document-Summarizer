@@ -1,8 +1,5 @@
 fastapi==0.117.1
 uvicorn==0.15.0
-sentence-transformers
-spacy==3.7.5
-tiktoken
 python-multipart
 google-cloud-storage
 google-cloud-vision
