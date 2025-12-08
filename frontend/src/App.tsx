@@ -10,7 +10,6 @@ interface HistoryItem {
     status: string;
     upload_time: string;
     download_url?: string;
-    download_url?: string;
 }
 
 const App = () => {
@@ -149,14 +148,12 @@ const App = () => {
                     className={`nav-button ${activeTab === 'new' ? 'active' : ''}`}
                     onClick={() => setActiveTab('new')}
                     title="Switch to New Summary tab"
-                    title="Switch to New Summary tab"
                 >
                     New Summary
                 </button>
                 <button 
                     className={`nav-button ${activeTab === 'history' ? 'active' : ''}`}
                     onClick={() => setActiveTab('history')}
-                    title="Switch to History tab"
                     title="Switch to History tab"
                 >
                     History
@@ -180,7 +177,6 @@ const App = () => {
                             disabled={!selectedFile || uploadedDocumentPath !== null || uploadStatus.includes('Uploading')}
                             id="upload-button"
                             title="Upload selected file to the cloud"
-                            title="Upload selected file to the cloud"
                         >
                             {uploadStatus.includes('Uploading') ? 'Uploading...' : 'Upload to Cloud Storage'}
                         </button>
@@ -197,7 +193,6 @@ const App = () => {
                             value={lengthMode} 
                             onChange={(e) => setLengthMode(e.target.value)}
                             title="Select the desired length of the summary"
-                            title="Select the desired length of the summary"
                         >
                             <option value="short">Short (Executive Summary)</option>
                             <option value="medium">Medium (Standard)</option>
@@ -208,7 +203,6 @@ const App = () => {
                             onClick={handleSummarize} 
                             disabled={!uploadedDocumentPath || summarizeStatus.includes('Running')}
                             id="summarize-button"
-                            title="Generate a summary for the uploaded document"
                             title="Generate a summary for the uploaded document"
                         >
                             {summarizeStatus.includes('Running') ? 'Generating...' : 'Generate Summary (OCR + AI)'}
