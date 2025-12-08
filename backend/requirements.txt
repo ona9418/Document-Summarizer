@@ -9,4 +9,5 @@ google-cloud-vision
 google-cloud-firestore
 google-genai
 pypdf
-#python3 -m spacy download en_core_web_sm Defaulting to user installation because normal site-packages is not writeable
+python-docx
+passlib[bcrypt]
