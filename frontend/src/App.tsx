@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, type ChangeEvent } from 'react'
 import Login from './Login'
 import './App.css'
 
-const BACKEND_URL = "http://localhost:8000"; 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000"; 
 
 interface HistoryItem {
     filename: string;
