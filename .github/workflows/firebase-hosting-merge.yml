@@ -22,3 +22,5 @@ jobs:
           channelId: live
           projectId: document-summarizer-476701
           entryPoint: ./frontend
+
+          
