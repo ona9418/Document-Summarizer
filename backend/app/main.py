@@ -1,15 +1,19 @@
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from google.cloud import storage, vision
+from google.cloud import storage, vision, firestore
 from google.api_core import exceptions as gcp_exceptions
 import pypdf
 
 import os
 import io
 import time 
+import uuid
+from datetime import datetime
 
-from Summarizer import abstractive_summary 
+from app.Summarizer import abstractive_summary 
 
 # 1. Initialize FastAPI app
 app = FastAPI()
@@ -21,6 +25,7 @@ origins = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
 ]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -34,9 +39,17 @@ GCP_PROJECT_ID = "document-summarizer-476701"
 
 GCS_BUCKET_NAME = "doc_sum_uploaded"
 
+FIRESTORE_COLLECTION = "summaries"
+
 # Explicitly pass the project ID to the clients
 storage_client = storage.Client(project=GCP_PROJECT_ID)
 vision_client = vision.ImageAnnotatorClient() 
+
+try:
+    db = firestore.Client(project=GCP_PROJECT_ID)
+except Exception as e:
+    print(f"Warning: Firestore client failed to initialize. Persistence will be disabled. {e}")
+    db = None
 
 # Supported file formats validation
 ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'png', 'jpg', 'jpeg', 'txt'}
@@ -111,8 +124,8 @@ def get_document_text(document_id: str, file_ext: str) -> str:
                 text_content = response.text_annotations[0].description if response.text_annotations else ""
 
         if not text_content:
-             print(f"OCR failed to extract any text from {document_id}")
-             raise ValueError("OCR failed to extract readable text from the document.")
+            print(f"OCR failed to extract any text from {document_id}")
+            raise ValueError("OCR failed to extract readable text from the document.")
 
         return text_content
 
@@ -180,10 +193,10 @@ def get_document_text(document_id: str, file_ext: str) -> str:
 
 # --- Endpoint 1: UPLOAD DOCUMENT ---
 @app.post('/upload-document')
-async def upload_document(document: UploadFile = File(...)):
-    if not document.filename:
-        raise HTTPException(status_code=400, detail="No selected file")
-
+async def upload_document(
+    document: UploadFile = File(...),
+    user_id: str = Form("guest_user")
+):
     if not allowed_file(document.filename):
         # Error handling for unsupported formats (as per the proposal)
         raise HTTPException(status_code=415, detail="Unsupported file format.") 
@@ -201,7 +214,19 @@ async def upload_document(document: UploadFile = File(...)):
         contents = await document.read()
         # Explicitly setting content_type is good practice
         blob.upload_from_string(contents, content_type=document.content_type) 
-
+        
+        if db:
+            # Log metadata to Firestore
+            doc_ref = db.collection(FIRESTORE_COLLECTION).document(unique_id)
+            doc_ref.set({
+                "documentId": destination_blob_name,
+                "filename": document.filename,
+                "userId": user_id,
+                "upload_time": datetime.utcnow(),
+                "status": "uploaded",
+                "summary": None
+            })
+            
         # Return the unique path/ID for the frontend to use in the next step
         return JSONResponse(
             content={"message": "File uploaded successfully", "documentId": destination_blob_name},
@@ -219,7 +244,10 @@ async def upload_document(document: UploadFile = File(...)):
 
 # --- Endpoint 2: SUMMARIZE (The AI Step) ---
 @app.post('/summarize')
-async def summarize_document_by_id(document_id: str = Form(...)):
+async def summarize_document_by_id(
+    document_id: str = Form(...),
+    length_mode: str = Form("medium"),
+):
     if not document_id:
         raise HTTPException(status_code=400, detail="Missing document ID for summarization.")
 
@@ -235,10 +263,21 @@ async def summarize_document_by_id(document_id: str = Form(...)):
              raise HTTPException(status_code=400, detail="Text content is too short or failed to extract for summarization.")
 
         # 3. Call the Summarizer Function
-        summary = abstractive_summary(text_content)
+        summary = abstractive_summary(text_content, length_mode)
         
         # NOTE: This is where you would integrate Firestore (as per the proposal).
-
+        
+        if db:
+            #document_id passed here is the GCS path "raw_documents/unique_id"
+            docs = db.collection(FIRESTORE_COLLECTION).where("documentId", "==", document_id).stream()
+            for doc in docs:
+                doc.reference.update({
+                    "status": "completed",
+                    "summary": summary,
+                    "length_mode": length_mode,
+                    "processed_time": datetime.utcnow()
+                })
+                
         return JSONResponse(
             content={
                 "message": "Document summarized successfully",
@@ -254,3 +293,29 @@ async def summarize_document_by_id(document_id: str = Form(...)):
     except Exception as e:
         print(f"FATAL Summarization Error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal summarization error: {e.__class__.__name__}")
+    
+@app.get('/history/{user_id}')
+async def get_user_history(user_id: str):
+    if not db:
+        return {"history": []}
+    try:
+        #Get documents for user, ordered by upload time descending
+        docs = db.collection(FIRESTORE_COLLECTION)\
+            .where("userId", "==", user_id)\
+            .order_by("upload_time", direction=firestore.Query.DESCENDING)\
+            .stream()
+        
+        history = []
+        for doc in docs:
+            data = doc.to_dict()
+            # Convert timestamps to strings
+            if 'upload_time' in data:
+                data['upload_time'] = data['upload_time'].isoformat()
+            if 'processed_time' in data:
+                data['processed_time'] = data['processed_time'].isoformat()
+            history.append(data)
+            
+        return {"history": history}
+    except Exception as e:
+        print(f"Error retrieving user history: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving history.")

@@ -1,41 +1,67 @@
-import { useState, type ChangeEvent } from 'react'
+import { useState, useEffect, useCallback, type ChangeEvent } from 'react'
 import './App.css'
 
 // --- Global variables provided by the environment ---
-// Set to your expected backend API endpoint (e.g., Cloud Run URL).
 const BACKEND_URL = "http://localhost:8000"; 
 // ---
 
+interface HistoryItem {
+    filename: string;
+    summary: string | null;
+    status: string;
+    upload_time: string;
+}
+
 const App = () => {
+    // State
+    const [userId, setUserId] = useState('demo_user_123'); // Simulated Auth
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [uploadStatus, setUploadStatus] = useState('1. Select a document (PDF, DOCX, JPG, PNG, TXT).');
+    const [lengthMode, setLengthMode] = useState('medium');
+    const [uploadStatus, setUploadStatus] = useState('1. Select a document.');
     const [summarizeStatus, setSummarizeStatus] = useState('');
     const [finalSummary, setFinalSummary] = useState('');
     const [uploadedDocumentPath, setUploadedDocumentPath] = useState<string | null>(null);
+    const [history, setHistory] = useState<HistoryItem[]>([]);
+    const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
     
     const supportedFileTypes = "application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, text/plain";
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Fetch History (Wrapped in useCallback to fix ESLint dependency warning)
+    const fetchHistory = useCallback(async () => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/history/${userId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setHistory(data.history);
+            }
+        } catch (error) {
+            console.error("Failed to fetch history", error);
+        }
+    }, [userId]);
+
+    // Refresh history when tab changes
+    useEffect(() => {
+        if (activeTab === 'history') fetchHistory();
+    }, [activeTab, fetchHistory]);
+
+    const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files && files.length > 0) {
             setSelectedFile(files[0]);
             setFinalSummary('');
-            setUploadStatus(`File selected: ${files[0].name}. Click 'Upload File'.`);
+            setUploadStatus(`File selected: ${files[0].name}. Click 'Upload to Cloud Storage'.`);
             setSummarizeStatus('');
             setUploadedDocumentPath(null); 
         }
     };
 
-    // 1. Handles uploading to GCS
     const handleUpload = async () => {
         if (!selectedFile) return;
-
-        setUploadStatus('Uploading...');
-        setSummarizeStatus('');
-        setUploadedDocumentPath(null);
-
+        setUploadStatus('Uploading file...');
+        
         const formData = new FormData();
         formData.append('document', selectedFile);
+        formData.append('user_id', userId);
         
         try {
             const response = await fetch(`${BACKEND_URL}/upload-document`, {
@@ -46,21 +72,18 @@ const App = () => {
             if (response.ok) {
                 const data = await response.json();
                 setUploadedDocumentPath(data.documentId); 
-                setUploadStatus(`Upload complete. Document ID: ${data.documentId}. Click 'Summarize'.`);
+                setUploadStatus(`Upload complete. Select Length & click 'Generate Summary'.`);
             } else {
                 const errorData = await response.json();
                 setUploadStatus(`Upload FAILED: ${errorData.detail || errorData.message}`);
             }
         } catch (error) {
             let errorMessage = "Unknown network error.";
-            if (error instanceof Error) {
-                errorMessage = error.message;
-            } 
-            setUploadStatus(`Network FAILED: ${errorMessage}. Check backend connection at ${BACKEND_URL}`);
+            if (error instanceof Error) errorMessage = error.message;
+            setUploadStatus(`Network FAILED: ${errorMessage}.`);
         }
     };
 
-    // 2. Handles summarization
     const handleSummarize = async () => {
         if (!uploadedDocumentPath) {
              setSummarizeStatus('Error: Please upload a file first.');
@@ -72,6 +95,7 @@ const App = () => {
         
         const formData = new FormData();
         formData.append('document_id', uploadedDocumentPath); 
+        formData.append('length_mode', lengthMode);
 
         try {
             const response = await fetch(`${BACKEND_URL}/summarize`, {
@@ -82,7 +106,7 @@ const App = () => {
             if (response.ok) {
                 const data = await response.json();
                 setFinalSummary(data.summary);
-                setSummarizeStatus(`Summarization successful for "${data.documentName}".`);
+                setSummarizeStatus(`Success! Summary generated for "${data.documentName}".`);
                 setUploadedDocumentPath(null); 
                 setSelectedFile(null); 
             } else {
@@ -90,66 +114,127 @@ const App = () => {
                 setSummarizeStatus(`Summarization FAILED: ${errorData.detail || errorData.message}`);
             }
         } catch (error) {
-            let errorMessage = "Network error or internal process failed.";
-            if (error instanceof Error) {
-                errorMessage = error.message;
-            }
+            let errorMessage = "Network error";
+            if (error instanceof Error) errorMessage = error.message;
             setSummarizeStatus(`Error: ${errorMessage}.`);
         }
     };
     
-    // Determine if an error class should be applied to the status text
     const statusClass = (uploadStatus.includes('FAILED') || summarizeStatus.includes('FAILED')) 
         ? "status-text status-error" 
         : "status-text";
 
     return (
         <div className="prototype-container">
-            <h2>GCP OCR Summarization Prototype</h2>
-            <hr />
+            <h2>Cloud Document Summarizer</h2>
+            
+            {/* Navigation Tabs */}
+            <div className="nav-container">
+                <button 
+                    className={`nav-button ${activeTab === 'new' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('new')}
+                >
+                    New Summary
+                </button>
+                <button 
+                    className={`nav-button ${activeTab === 'history' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('history')}
+                >
+                    History
+                </button>
+            </div>
 
-            {/* 1. File Selection */}
-            <div className="step-group">
-                <label htmlFor="document-file">Document Input</label>
-                <input
-                    type="file"
-                    id="document-file"
-                    accept={supportedFileTypes}
-                    onChange={handleFileChange}
+            {/* User Auth Input (Fixed Label) */}
+            <div className="auth-container">
+                <label htmlFor="user-id-input">Logged in as: </label>
+                <input 
+                    id="user-id-input"
+                    type="text" 
+                    className="auth-input"
+                    value={userId} 
+                    onChange={(e) => setUserId(e.target.value)} 
+                    placeholder="Enter User ID"
+                    title="User Identification"
                 />
             </div>
 
-            {/* 2. Upload Button */}
-            <div className="step-group">
-                <button 
-                    onClick={handleUpload} 
-                    disabled={!selectedFile || uploadedDocumentPath !== null || uploadStatus.includes('Uploading') || uploadStatus.includes('FAILED')}
-                    id="upload-button"
-                >
-                    {uploadStatus.includes('Uploading') ? 'Uploading...' : 'Upload File to GCS'}
-                </button>
-            </div>
+            {activeTab === 'new' && (
+                <>
+                    <div className="step-group">
+                        <label htmlFor="document-file">1. Select Document</label>
+                        <input 
+                            type="file" 
+                            id="document-file"
+                            accept={supportedFileTypes} 
+                            onChange={handleFileChange} 
+                        />
+                    </div>
 
-            {/* 3. Summarize Button */}
-            <div className="step-group">
-                <button 
-                    onClick={handleSummarize} 
-                    disabled={!uploadedDocumentPath || summarizeStatus.includes('Running OCR') || summarizeStatus.includes('FAILED')}
-                    id="summarize-button"
-                >
-                    {summarizeStatus.includes('Running OCR') ? 'Generating Summary...' : 'Summarize Document (OCR + AI)'}
-                </button>
-            </div>
-            
-            <p className={statusClass}>
-                **Status:** {uploadStatus || summarizeStatus || 'Awaiting action...'}
-            </p>
+                    <div className="step-group">
+                        <button 
+                            onClick={handleUpload} 
+                            disabled={!selectedFile || uploadedDocumentPath !== null || uploadStatus.includes('Uploading')}
+                            id="upload-button"
+                        >
+                            {uploadStatus.includes('Uploading') ? 'Uploading...' : 'Upload to Cloud Storage'}
+                        </button>
+                    </div>
+                    <p className={statusClass}>{uploadStatus}</p>
 
-            {/* Summary Output */}
-            {finalSummary && (
-                <div className="summary-output">
-                    <h3>Generated Summary</h3>
-                    <pre className="summary-text-area">{finalSummary}</pre>
+                    <hr className="divider"/>
+
+                    <div className="step-group">
+                        <label htmlFor="length-mode">2. Summary Length</label>
+                        <select 
+                            id="length-mode"
+                            className="length-select"
+                            value={lengthMode} 
+                            onChange={(e) => setLengthMode(e.target.value)}
+                            title="Select summary length"
+                        >
+                            <option value="short">Short (Executive Summary)</option>
+                            <option value="medium">Medium (Standard)</option>
+                            <option value="long">Long (Detailed)</option>
+                        </select>
+                        
+                        <button 
+                            onClick={handleSummarize} 
+                            disabled={!uploadedDocumentPath || summarizeStatus.includes('Running')}
+                            id="summarize-button"
+                        >
+                            {summarizeStatus.includes('Running') ? 'Generating...' : 'Generate Summary (OCR + AI)'}
+                        </button>
+                    </div>
+                    
+                    <p className={statusClass}>{summarizeStatus}</p>
+
+                    {finalSummary && (
+                        <div className="summary-output">
+                            <h3>Generated Summary</h3>
+                            <pre className="summary-text-area">{finalSummary}</pre>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {activeTab === 'history' && (
+                <div className="history-container">
+                    <h3>Previous Summaries</h3>
+                    {history.length === 0 ? <p>No history found for this user.</p> : (
+                        <ul className="history-list">
+                            {history.map((item, idx) => (
+                                <li key={idx} className="history-item">
+                                    <div className="history-header">
+                                        <strong>{item.filename}</strong>
+                                        <span className="history-date">{new Date(item.upload_time).toLocaleString()}</span>
+                                    </div>
+                                    <div className="history-summary">
+                                        {item.summary || "Processing or Failed..."}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
             )}
         </div>

@@ -1,6 +1,12 @@
 fastapi==0.117.1
 uvicorn==0.15.0
 sentence-transformers
-spacy
+spacy==3.7.5
 tiktoken
+python-multipart
+google-cloud-storage
+google-cloud-vision
+google-cloud-firestore
+google-genai
+pypdf
 #python3 -m spacy download en_core_web_sm Defaulting to user installation because normal site-packages is not writeable
