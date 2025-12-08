@@ -1,20 +1,22 @@
 import { useState, useEffect, useCallback, type ChangeEvent } from 'react'
+import Login from './Login'
 import './App.css'
 
-// --- Global variables provided by the environment ---
 const BACKEND_URL = "http://localhost:8000"; 
-// ---
 
 interface HistoryItem {
     filename: string;
     summary: string | null;
     status: string;
     upload_time: string;
+    download_url?: string;
 }
 
 const App = () => {
-    // State
-    const [userId, setUserId] = useState('demo_user_123'); // Simulated Auth
+    // --- AUTH STATE ---
+    const [userId, setUserId] = useState<string | null>(null); 
+    
+    // --- APP STATE ---
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [lengthMode, setLengthMode] = useState('medium');
     const [uploadStatus, setUploadStatus] = useState('1. Select a document.');
@@ -26,8 +28,8 @@ const App = () => {
     
     const supportedFileTypes = "application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/png, image/jpeg, text/plain";
 
-    // Fetch History (Wrapped in useCallback to fix ESLint dependency warning)
     const fetchHistory = useCallback(async () => {
+        if (!userId) return;
         try {
             const res = await fetch(`${BACKEND_URL}/history/${userId}`);
             if (res.ok) {
@@ -39,10 +41,20 @@ const App = () => {
         }
     }, [userId]);
 
-    // Refresh history when tab changes
     useEffect(() => {
-        if (activeTab === 'history') fetchHistory();
-    }, [activeTab, fetchHistory]);
+        if (userId && activeTab === 'history') fetchHistory();
+    }, [activeTab, fetchHistory, userId]);
+
+    const handleLogout = () => {
+        setUserId(null);
+        setHistory([]);
+        setFinalSummary('');
+        setUploadStatus('1. Select a document.');
+    };
+
+    if (!userId) {
+        return <Login onLogin={(id) => setUserId(id)} />;
+    }
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
@@ -126,48 +138,37 @@ const App = () => {
 
     return (
         <div className="prototype-container">
-            <h2>Cloud Document Summarizer</h2>
+            <div className="header-row">
+                <h2>Cloud Document Summarizer</h2>
+                <button onClick={handleLogout} className="logout-button">Logout</button>
+            </div>
             
-            {/* Navigation Tabs */}
             <div className="nav-container">
                 <button 
                     className={`nav-button ${activeTab === 'new' ? 'active' : ''}`}
                     onClick={() => setActiveTab('new')}
+                    title="Switch to New Summary tab"
                 >
                     New Summary
                 </button>
                 <button 
                     className={`nav-button ${activeTab === 'history' ? 'active' : ''}`}
                     onClick={() => setActiveTab('history')}
+                    title="Switch to History tab"
                 >
                     History
                 </button>
             </div>
 
-            {/* User Auth Input (Fixed Label) */}
             <div className="auth-container">
-                <label htmlFor="user-id-input">Logged in as: </label>
-                <input 
-                    id="user-id-input"
-                    type="text" 
-                    className="auth-input"
-                    value={userId} 
-                    onChange={(e) => setUserId(e.target.value)} 
-                    placeholder="Enter User ID"
-                    title="User Identification"
-                />
+                <span>Logged in as: <strong>{userId}</strong></span>
             </div>
 
             {activeTab === 'new' && (
                 <>
                     <div className="step-group">
                         <label htmlFor="document-file">1. Select Document</label>
-                        <input 
-                            type="file" 
-                            id="document-file"
-                            accept={supportedFileTypes} 
-                            onChange={handleFileChange} 
-                        />
+                        <input type="file" id="document-file" accept={supportedFileTypes} onChange={handleFileChange} title="Choose a file to upload"/>
                     </div>
 
                     <div className="step-group">
@@ -175,6 +176,7 @@ const App = () => {
                             onClick={handleUpload} 
                             disabled={!selectedFile || uploadedDocumentPath !== null || uploadStatus.includes('Uploading')}
                             id="upload-button"
+                            title="Upload selected file to the cloud"
                         >
                             {uploadStatus.includes('Uploading') ? 'Uploading...' : 'Upload to Cloud Storage'}
                         </button>
@@ -190,7 +192,7 @@ const App = () => {
                             className="length-select"
                             value={lengthMode} 
                             onChange={(e) => setLengthMode(e.target.value)}
-                            title="Select summary length"
+                            title="Select the desired length of the summary"
                         >
                             <option value="short">Short (Executive Summary)</option>
                             <option value="medium">Medium (Standard)</option>
@@ -201,6 +203,7 @@ const App = () => {
                             onClick={handleSummarize} 
                             disabled={!uploadedDocumentPath || summarizeStatus.includes('Running')}
                             id="summarize-button"
+                            title="Generate a summary for the uploaded document"
                         >
                             {summarizeStatus.includes('Running') ? 'Generating...' : 'Generate Summary (OCR + AI)'}
                         </button>
@@ -225,7 +228,20 @@ const App = () => {
                             {history.map((item, idx) => (
                                 <li key={idx} className="history-item">
                                     <div className="history-header">
-                                        <strong>{item.filename}</strong>
+                                        <div className="filename-container">
+                                            <strong>{item.filename}</strong>
+                                            {item.download_url && (
+                                                <a 
+                                                    href={item.download_url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="download-link"
+                                                    title="Download Original File"
+                                                >
+                                                    ⬇ Download
+                                                </a>
+                                            )}
+                                        </div>
                                         <span className="history-date">{new Date(item.upload_time).toLocaleString()}</span>
                                     </div>
                                     <div className="history-summary">

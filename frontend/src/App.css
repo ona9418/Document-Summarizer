@@ -299,3 +299,125 @@ button:disabled {
   /* --- FIX: Force summary text to be dark --- */
   color: #333;
 }
+
+.filename-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Ensure download link style is present */
+.download-link {
+  font-size: 0.85em;
+  color: #007BFF;
+  text-decoration: none;
+  border: 1px solid #007BFF;
+  padding: 2px 8px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.download-link:hover {
+  background-color: #007BFF;
+  color: white;
+  text-decoration: none;
+}
+
+.login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+.login-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    text-align: center;
+    width: 100%;
+    max-width: 400px;
+    border: 1px solid #eee;
+}
+
+.login-input {
+    width: 100%;
+    margin-bottom: 1rem;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box; /* Ensures padding doesn't affect width */
+}
+
+.login-note {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 1rem;
+}
+
+.logout-button {
+    background-color: transparent;
+    color: #666;
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+    font-size: 0.8rem;
+    width: auto;
+}
+
+.logout-button:hover {
+    background-color: #f5f5f5;
+    color: #333;
+    border-color: #999;
+}
+
+.header-row {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* History List Wrappers */
+.filename-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Ensure download link style is present */
+.download-link {
+  font-size: 0.85em;
+  color: #007BFF;
+  text-decoration: none;
+  border: 1px solid #007BFF;
+  padding: 2px 8px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.download-link:hover {
+  background-color: #007BFF;
+  color: white;
+  text-decoration: none;
+}
+
+/* Auth / Logout Button */
+.logout-button {
+    background-color: transparent;
+    color: #666;
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+    font-size: 0.8rem;
+    width: auto;
+    cursor: pointer;
+}
+
+.logout-button:hover {
+    background-color: #f5f5f5;
+    color: #333;
+    border-color: #999;
+}

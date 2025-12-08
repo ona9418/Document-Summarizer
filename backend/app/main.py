@@ -6,19 +6,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import storage, vision, firestore
 from google.api_core import exceptions as gcp_exceptions
 import pypdf
+import docx
 
 import os
 import io
 import time 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.Summarizer import abstractive_summary 
+from app.auth import router as auth_router
 
 # 1. Initialize FastAPI app
 app = FastAPI()
 
-# 2. CORS Configuration (Omitted for brevity)
+# 2. Connect AUTH router
+app.include_router(auth_router)
+
+# 3. CORS Configuration (Omitted for brevity)
 origins = [
     "http://localhost:3000",
     "http://localhost:5173", 
@@ -52,7 +57,7 @@ except Exception as e:
     db = None
 
 # Supported file formats validation
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'png', 'jpg', 'jpeg', 'txt'}
+ALLOWED_EXTENSIONS = {'pdf', 'docx', 'doc', 'txt', 'png', 'jpg', 'jpeg'}
 
 def allowed_file(filename):
     if not filename:
@@ -85,12 +90,23 @@ def get_document_text(document_id: str, file_ext: str) -> str:
         
         text_content = ""
 
-        # 1. Handle plain text files directly
+        # 1. Handle Text Files (.txt)
         if file_ext == 'txt':
+            print("Processing as .txt file.")
             text_content = downloaded_contents.getvalue().decode('utf-8', errors='ignore')
-            print("Detected file type: TXT. Reading content directly.")
             
-        # 2. Handle digital PDFs directly using pypdf
+        # 2. Handle Word documents (.docx) 
+        elif file_ext == 'docx':
+            print("Processing as DOCX...")
+            try:
+                doc = docx.Document(downloaded_contents)
+                # Join all paragraphs with a newline
+                text_content = "\n".join([para.text for para in doc.paragraphs])
+            except Exception as e:
+                print(f"python-docx failed: {e}. File might be corrupt or binary .doc format.")
+                text_content = ""
+                
+        # 3 . Handle digital PDFs directly using pypdf
         elif file_ext == 'pdf':
             print("Detected file type: PDF. Attempting direct text extraction...")
             try:
@@ -102,11 +118,13 @@ def get_document_text(document_id: str, file_ext: str) -> str:
                 print(f"pypdf failed: {e}. Falling back to Cloud Vision OCR.")
                 text_content = "" # Ensure text_content is empty to trigger OCR fallback
         
-        # 3. Fallback to OCR for images, failed PDF parsing, or other binary docs
+        # 4. Fallback to OCR for images, failed PDF parsing, or other binary docs
         if not text_content:
             print(f"Falling back to Cloud Vision OCR for {file_ext}...")
             
             # The PDF must be re-read if pypdf failed and the buffer position was changed
+            if file_ext in ['doc', 'docx', 'pdf']:
+                print(f"Warning: OCR may fail for {file_ext} files that are not images.")
             downloaded_contents.seek(0)
             
             # Prepare image for Vision API (used for images and document OCR)
@@ -252,6 +270,9 @@ async def summarize_document_by_id(
         raise HTTPException(status_code=400, detail="Missing document ID for summarization.")
 
     try:
+       
+        base_name_with_id = os.path.basename(document_id)
+        parts = base_name_with_id.split('_', 2)
         # 1. Determine file extension from the ID
         original_filename = document_id.split('_')[-1]
         file_ext = get_file_extension(original_filename)
@@ -265,16 +286,22 @@ async def summarize_document_by_id(
         # 3. Call the Summarizer Function
         summary = abstractive_summary(text_content, length_mode)
         
-        # NOTE: This is where you would integrate Firestore (as per the proposal).
-        
+        name_root, ext = os.path.splitext(original_filename)
+        new_filename = f"{name_root}_summary_{length_mode}{ext}"
+        # 4. Update Firestore with the summary and status        
         if db:
             #document_id passed here is the GCS path "raw_documents/unique_id"
-            docs = db.collection(FIRESTORE_COLLECTION).where("documentId", "==", document_id).stream()
+            docs = db.collection(FIRESTORE_COLLECTION)\
+                .where(field_path = "documentId",
+                       op_string = "==",
+                       value = document_id)\
+                .stream()
             for doc in docs:
                 doc.reference.update({
                     "status": "completed",
                     "summary": summary,
                     "length_mode": length_mode,
+                    "filename": new_filename,
                     "processed_time": datetime.utcnow()
                 })
                 
@@ -293,7 +320,9 @@ async def summarize_document_by_id(
     except Exception as e:
         print(f"FATAL Summarization Error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal summarization error: {e.__class__.__name__}")
-    
+  
+  
+# --- Endpoint 3: GET USER HISTORY --- 
 @app.get('/history/{user_id}')
 async def get_user_history(user_id: str):
     if not db:
@@ -301,18 +330,49 @@ async def get_user_history(user_id: str):
     try:
         #Get documents for user, ordered by upload time descending
         docs = db.collection(FIRESTORE_COLLECTION)\
-            .where("userId", "==", user_id)\
+            .where(field_path = "userId",
+                   op_string = "==",
+                   value = user_id)\
             .order_by("upload_time", direction=firestore.Query.DESCENDING)\
             .stream()
         
         history = []
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
+        
         for doc in docs:
             data = doc.to_dict()
-            # Convert timestamps to strings
+            
+            # Convert Dates
             if 'upload_time' in data:
                 data['upload_time'] = data['upload_time'].isoformat()
-            if 'processed_time' in data:
+            if 'processed_time' in data and isinstance(data['processed_time'], datetime):
                 data['processed_time'] = data['processed_time'].isoformat()
+                
+            # Generate signed URL for downloading the original document
+            try:
+                blob_path = data.get("documentId")
+                if blob_path:
+                    blob = bucket.blob(blob_path)
+
+                    
+                    original_name = data.get("filename", "document")
+                    length_mode = data.get("length_mode", "medium")
+                    
+                    name_root, file_ext = os.path.splitext(original_name)
+                    new_filename = f"{name_root}_summary_{length_mode}{file_ext}"
+                    
+                    url = blob.generate_signed_url(
+                        version="v4",
+                        expiration=timedelta(minutes=15),
+                        method="GET",
+                        response_disposition=f'attachment; filename="{new_filename}"'
+                    )
+                    data["download_url"] = url
+            except Exception as e:
+                print(f"Error generating signed URL for {data.get('filename')}: {e}")
+                data["download_url"] = None
+            
+            
             history.append(data)
             
         return {"history": history}

@@ -28,8 +28,8 @@ def abstractive_summary(text_content: str, length_mode: str = "medium") -> str:
     # Adjust prompts based on user preference
     length_instruction = {
         "short": "The target length should be approximately 15% of the original text length.",
-        "medium": "The target length should be approximately 30% of the original text length.",
-        "long": "The target length should be approximately 50% of the original text length."
+        "medium": "The target length should be approximately 25% of the original text length.",
+        "long": "The target length should be approximately 55% of the original text length."
     }
 
     # Default to medium if mode is unrecognized
