@@ -11,7 +11,7 @@ import os
 import io
 import time 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.Summarizer import abstractive_summary 
 
@@ -293,6 +293,7 @@ async def summarize_document_by_id(
     except Exception as e:
         print(f"FATAL Summarization Error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal summarization error: {e.__class__.__name__}")
+  
     
 @app.get('/history/{user_id}')
 async def get_user_history(user_id: str):
@@ -306,13 +307,26 @@ async def get_user_history(user_id: str):
             .stream()
         
         history = []
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
+        
         for doc in docs:
             data = doc.to_dict()
-            # Convert timestamps to strings
-            if 'upload_time' in data:
-                data['upload_time'] = data['upload_time'].isoformat()
-            if 'processed_time' in data:
-                data['processed_time'] = data['processed_time'].isoformat()
+            
+            try:
+                blob_path = data.get("document_id")
+                if blob_path:
+                    blob = bucket.blob(blob_path)
+                    url = blob.generate_signed_url(
+                        version="v4",
+                        expiration=timedelta(minutes=15),
+                        method="GET",
+                        response_disposition=f'attachment; filename="{data.get("filename", "document")}"'
+                    )
+            except Exception as e:
+                print(f"Error generating signed URL for {data.get('filename')}: {e}")
+                data["download_url"] = None
+            
+            
             history.append(data)
             
         return {"history": history}

@@ -299,3 +299,27 @@ button:disabled {
   /* --- FIX: Force summary text to be dark --- */
   color: #333;
 }
+
+.filename-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Ensure download link style is present */
+.download-link {
+  font-size: 0.85em;
+  color: #007BFF;
+  text-decoration: none;
+  border: 1px solid #007BFF;
+  padding: 2px 8px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.download-link:hover {
+  background-color: #007BFF;
+  color: white;
+  text-decoration: none;
+}
