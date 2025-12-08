@@ -21,3 +21,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DOCUMENT_SUMMARIZER_476701 }}
           channelId: live
           projectId: document-summarizer-476701
+          entryPoint: frontend
