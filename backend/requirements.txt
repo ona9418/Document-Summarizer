@@ -11,3 +11,4 @@ google-genai
 pypdf
 python-docx
 passlib[bcrypt]
+bcrypt==3.2.2

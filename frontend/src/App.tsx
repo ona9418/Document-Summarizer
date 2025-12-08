@@ -242,20 +242,6 @@ const App = () => {
                                                 </a>
                                             )}
                                         </div>
-                                        <div className="filename-container">
-                                            <strong>{item.filename}</strong>
-                                            {item.download_url && (
-                                                <a 
-                                                    href={item.download_url} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="download-link"
-                                                    title="Download Original File"
-                                                >
-                                                    ⬇ Download
-                                                </a>
-                                            )}
-                                        </div>
                                         <span className="history-date">{new Date(item.upload_time).toLocaleString()}</span>
                                     </div>
                                     <div className="history-summary">
