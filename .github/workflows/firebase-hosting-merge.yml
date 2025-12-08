@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm ci && npm run build
-        working-directory: frontend
+        working-directory: ./frontend
         env:
           VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
       - uses: FirebaseExtended/action-hosting-deploy@v0
@@ -21,4 +21,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DOCUMENT_SUMMARIZER_476701 }}
           channelId: live
           projectId: document-summarizer-476701
-          entryPoint: frontend
+          entryPoint: ./frontend
