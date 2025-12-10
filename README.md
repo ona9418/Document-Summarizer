@@ -157,20 +157,20 @@ It updates the Cloud Run service with the new image.
 Document-Summarizer/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py          # API endpoints & logic
-│   │   ├── auth.py          # Authentication handlers
-│   │   └── Summarizer.py    # Gemini AI integration
-│   ├── Dockerfile           # Backend container config
-│   ├── requirements.txt     # Python dependencies
-│   └── service_account.json # (Ignored) GCP Credentials
+│   │   ├── main.py          
+│   │   ├── auth.py          
+│   │   └── Summarizer.py    
+│   ├── Dockerfile           
+│   ├── requirements.txt     
+│   └── service_account.json 
 ├── frontend/
 │   ├── src/
-│   │   ├── App.tsx          # Main application logic
-│   │   ├── Login.tsx        # Auth UI
+│   │   ├── App.tsx          
+│   │   ├── Login.tsx        
 │   │   └── ...
-│   ├── firebase.json        # Hosting configuration
-│   └── vite.config.ts       # Vite configuration
-└── .github/workflows/       # CI/CD pipelines
+│   ├── firebase.json         
+│   └── vite.config.ts       
+└── .github/workflows/       
 
 🛡️ Security
 Secrets: API keys and credentials are not stored in the repository. In production, they are managed via Google Secret Manager and injected as environment variables.
