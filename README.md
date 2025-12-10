@@ -82,6 +82,7 @@ Bash
 
 git clone https://github.com/your-username/Document-Summarizer.git
 cd Document-Summarizer
+
 2. Backend Setup
 Navigate to the backend directory and set up the Python environment.
 
