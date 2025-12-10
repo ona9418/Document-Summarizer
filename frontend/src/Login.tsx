@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import './App.css'; 
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
 interface LoginProps {
     onLogin: (userId: string) => void;

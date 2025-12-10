@@ -5,7 +5,7 @@ from datetime import datetime
 from passlib.context import CryptContext
 import os
 
-# Setup Password Hashing
+# Password Hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 router = APIRouter()

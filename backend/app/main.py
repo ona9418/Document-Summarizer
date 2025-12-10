@@ -24,7 +24,7 @@ app = FastAPI()
 # 2. Connect AUTH router
 app.include_router(auth_router)
 
-# 3. CORS Configuration (Omitted for brevity)
+# 3. CORS Configuration
 origins = [
     "http://localhost:3000",
     "http://localhost:5173", 
@@ -49,7 +49,6 @@ GCS_BUCKET_NAME = "doc_sum_uploaded"
 
 FIRESTORE_COLLECTION = "summaries"
 
-# Explicitly pass the project ID to the clients
 storage_client = storage.Client(project=GCP_PROJECT_ID)
 vision_client = vision.ImageAnnotatorClient() 
 
@@ -115,7 +114,7 @@ def get_document_text(document_id: str, file_ext: str) -> str:
             try:
                 reader = pypdf.PdfReader(downloaded_contents)
                 for page in reader.pages:
-                    # Concatenate extracted text, ensuring empty pages don't cause issues
+                    # Concatenate extracted text
                     text_content += page.extract_text() or ""
             except Exception as e:
                 print(f"pypdf failed: {e}. Falling back to Cloud Vision OCR.")
@@ -130,10 +129,10 @@ def get_document_text(document_id: str, file_ext: str) -> str:
                 print(f"Warning: OCR may fail for {file_ext} files that are not images.")
             downloaded_contents.seek(0)
             
-            # Prepare image for Vision API (used for images and document OCR)
+            # Prepare image for Vision API
             image = vision.Image(content=downloaded_contents.getvalue())
             
-            # Use DOCUMENT_TEXT_DETECTION for higher fidelity document OCR
+            # Use DOCUMENT_TEXT_DETECTION for OCR
             response = vision_client.document_text_detection(image=image)
             
             text_content = response.full_text_annotation.text if response.full_text_annotation else ""
@@ -157,61 +156,6 @@ def get_document_text(document_id: str, file_ext: str) -> str:
         # Re-raise as HTTPException for client feedback
         raise HTTPException(status_code=500, detail=f"Text extraction failed: {e.__class__.__name__}")
 
-"""
-def get_document_text(document_id: str, file_ext: str) -> str:
-    
-    #Retrieves the document from GCS and performs OCR for non-text files.
-    
-    try:
-        # This still uses the bucket name, but the client is initialized with the correct project ID.
-        bucket = storage_client.bucket(GCS_BUCKET_NAME)
-        blob = bucket.blob(document_id)
-        
-        if not blob.exists():
-            raise FileNotFoundError(f"Document not found at path: {document_id}")
-
-        # Download the file contents into a buffer
-        downloaded_contents = io.BytesIO()
-        blob.download_to_file(downloaded_contents)
-        downloaded_contents.seek(0)
-
-        # 1. Handle plain text files directly
-        if file_ext == 'txt':
-            text_content = downloaded_contents.getvalue().decode('utf-8', errors='ignore')
-            print("Detected file type: TXT. Reading content directly.")
-            return text_content
-        
-        # 2. Handle image and small PDF/DOCX files using Vision API for OCR
-        print(f"Detected file type: {file_ext}. Attempting OCR via Cloud Vision API...")
-
-        # Use vision.Image 
-        image = vision.Image(content=downloaded_contents.getvalue())
-        
-        # Use DOCUMENT_TEXT_DETECTION for higher fidelity OCR on documents
-        response = vision_client.document_text_detection(image=image)
-        
-        text_content = response.full_text_annotation.text if response.full_text_annotation else ""
-        
-        if not text_content:
-            print("Warning: OCR returned no text. Trying basic text detection.")
-            response = vision_client.text_detection(image=image)
-            # The first annotation contains the entire extracted text
-            text_content = response.text_annotations[0].description if response.text_annotations else ""
-
-        if not text_content:
-             print(f"OCR failed to extract any text from {document_id}")
-             raise ValueError("OCR failed to extract readable text from the document.")
-
-        return text_content
-
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        print(f"OCR/GCS Download Error: {e}")
-        # Re-raise as HTTPException for client feedback
-        raise HTTPException(status_code=500, detail=f"Text extraction failed: {e.__class__.__name__}")
-"""
-
 # --- Endpoint 1: UPLOAD DOCUMENT ---
 @app.post('/upload-document')
 async def upload_document(
@@ -219,7 +163,7 @@ async def upload_document(
     user_id: str = Form("guest_user")
 ):
     if not allowed_file(document.filename):
-        # Error handling for unsupported formats (as per the proposal)
+        # Error handling for unsupported formats
         raise HTTPException(status_code=415, detail="Unsupported file format.") 
 
     try:
@@ -248,7 +192,7 @@ async def upload_document(
                 "summary": None
             })
             
-        # Return the unique path/ID for the frontend to use in the next step
+        # Return the unique path/ID for the frontend to use
         return JSONResponse(
             content={"message": "File uploaded successfully", "documentId": destination_blob_name},
             status_code=200
@@ -256,7 +200,6 @@ async def upload_document(
         
 
     except gcp_exceptions.NotFound:
-        # Note: This NotFound might still indicate an issue if the GCS bucket itself is not in the correct project.
         raise HTTPException(status_code=500, detail="GCS Bucket not found. Check configuration and authentication.")
     except Exception as e:
         print(f"FATAL GCS/Server Error during upload: {e}") 
@@ -273,7 +216,6 @@ async def summarize_document_by_id(
         raise HTTPException(status_code=400, detail="Missing document ID for summarization.")
 
     try:
-       
         base_name_with_id = os.path.basename(document_id)
         parts = base_name_with_id.split('_', 2)
         # 1. Determine file extension from the ID
@@ -331,7 +273,7 @@ async def get_user_history(user_id: str):
     if not db:
         return {"history": []}
     try:
-        #Get documents for user, ordered by upload time descending
+        #Get documents for user, ordered by descending upload time
         docs = db.collection(FIRESTORE_COLLECTION)\
             .where(field_path = "userId",
                    op_string = "==",
